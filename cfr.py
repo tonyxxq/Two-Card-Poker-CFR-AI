@@ -105,7 +105,8 @@ class CFR:
         return hand
 
     def get_winner(self, hand1, hand2):
-        ''' Gets the winner between the two hands
+        """
+        Gets the winner between the two hands
             Pair > Suited > Off-suited
             If two hands are in the same category, then the higher card of each hand
             breaks the tie, followed by the second card
@@ -113,12 +114,12 @@ class CFR:
             returns 1 if the first hand wins
             returns 2 if the second hand wins
             returns 0 if the hands are tied
-        '''
+        """
 
+        # 判断 hand1 和 hand2 是否是对子
         is_hand1_pair = hand1[0] == hand1[1]
         is_hand2_pair = hand2[0] == hand2[1]
 
-        # both pair
         if is_hand1_pair and is_hand2_pair:
             if hand1[0] == hand2[0]:
                 return 0
@@ -131,6 +132,8 @@ class CFR:
         elif is_hand2_pair:
             return 2
 
+
+        # 两个是否是同花
         is_hand1_suited = hand1[2] == 's'
         is_hand2_suited = hand2[2] == 's'
 
@@ -151,7 +154,7 @@ class CFR:
         elif is_hand2_suited:
             return 2
 
-        # both unsuited
+        # 两个都不是同花
         if hand1[0] == hand2[0]:
             if hand1[1] == hand2[1]:
                 return 0
@@ -325,6 +328,7 @@ class CFR:
                 return self.ante if winner == 1 else -self.ante
 
         state = str(player_hand)
+
         for action in history:
             state += action
 

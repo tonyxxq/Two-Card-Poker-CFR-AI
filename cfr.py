@@ -1,17 +1,27 @@
 import random
 
-class Game():
+
+class Game:
+    # 动作
     BET = '0'
     CALL = '1'
     CHECK = '2'
     FOLD = '3'
 
+    # 牌力的大小排名
     RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2']
-    SUITS = ['h', 's', 'd', 'c']
-    DECK = [rank + suit for rank in RANKS for suit in SUITS]
+
+    # 花色
+    SUIT = ['h', 's', 'd', 'c']
+
+    # 生成 52 张牌
+    DECK = [rank + suit for rank in RANKS for suit in SUIT]
 
     @staticmethod
     def deal_cards():
+        """
+        随机发牌，每人两张
+        """
         sample = random.sample(Game.DECK, 4)
         player_one_cards = sample[0:2]
         player_two_cards = sample[2:]
@@ -45,6 +55,9 @@ class Game():
 
     @staticmethod
     def get_higher_rank(rank1, rank2):
+        """
+        比较大小
+        """
         for rank in Game.RANKS:
             if rank1 == rank:
                 return rank1
@@ -52,30 +65,42 @@ class Game():
                 return rank2
 
         return rank1
-class CFR():
+
+
+class CFR:
     def __init__(self):
-        self.game_states_ = dict() # maps history to node
+        self.game_states_ = dict()  # maps history to node
 
     def simplify_hand(self, hand):
-        ''' Takes a hand (array of size two) and compresses the hand into simpler representation
+        """
+        Takes a hand (array of size two) and compresses the hand into simpler representation
             Also puts higher card in front
 
             i.e. Th 9h becomes T9s as both cards share the same suit
                 Th 9s becomes T9o as both cards do not share the same suit (off-suit)
                 Th Ts becomes TT (pair of tens)
-        '''
+        
+        :param hand: 
+        :return: 
+        """
+        # 第一张牌
         rank1 = hand[0][0]
         suit1 = hand[0][1]
+
+        # 第二张牌
         rank2 = hand[1][0]
         suit2 = hand[1][1]
 
-        # pair
+        # 一对
         if rank1 == rank2:
             return rank1 + rank2
 
+        # 大的牌放前面，小的牌放后面
         hand = Game.get_higher_rank(rank1, rank2)
-        hand += rank2 if hand==rank1 else rank1
-        hand += 's' if suit1==suit2 else 'o'
+        hand += rank2 if hand == rank1 else rank1
+
+        # 花色一样加后缀 s 不一样加后缀 o
+        hand += 's' if suit1 == suit2 else 'o'
 
         return hand
 
@@ -90,14 +115,14 @@ class CFR():
             returns 0 if the hands are tied
         '''
 
-        is_hand1_pair = hand1[0]==hand1[1]
-        is_hand2_pair = hand2[0]==hand2[1]
+        is_hand1_pair = hand1[0] == hand1[1]
+        is_hand2_pair = hand2[0] == hand2[1]
 
         # both pair
         if is_hand1_pair and is_hand2_pair:
             if hand1[0] == hand2[0]:
                 return 0
-            if hand1[0] == Game.get_higher_rank(hand1[0],hand2[0]):
+            if hand1[0] == Game.get_higher_rank(hand1[0], hand2[0]):
                 return 1
             else:
                 return 2
@@ -106,8 +131,8 @@ class CFR():
         elif is_hand2_pair:
             return 2
 
-        is_hand1_suited = hand1[2]=='s'
-        is_hand2_suited = hand2[2]=='s'
+        is_hand1_suited = hand1[2] == 's'
+        is_hand2_suited = hand2[2] == 's'
 
         # both suited
         if is_hand1_suited and is_hand2_suited:
@@ -117,7 +142,7 @@ class CFR():
                 if hand1[1] == Game.get_higher_rank(hand1[1], hand2[1]):
                     return 1
                 return 2
-            if hand1[0] == Game.get_higher_rank(hand1[0],hand2[0]):
+            if hand1[0] == Game.get_higher_rank(hand1[0], hand2[0]):
                 return 1
             else:
                 return 2
@@ -133,24 +158,33 @@ class CFR():
             if hand1[1] == Game.get_higher_rank(hand1[1], hand2[1]):
                 return 1
             return 2
-        if hand1[0] == Game.get_higher_rank(hand1[0],hand2[0]):
+        if hand1[0] == Game.get_higher_rank(hand1[0], hand2[0]):
             return 1
         else:
             return 2
 
     def train(self, iterations, ante=1.0, bet1=2.0, bet2=8.0, print_interval=1000000):
-        ''' Do ficticious self-play to find optimal strategy'''
+        """
+        Do ficticious self-play to find optimal strategy
+        :param iterations: 
+        :param ante: 
+        :param bet1: 
+        :param bet2: 
+        :param print_interval: 
+        :return: 
+        """
+
         util = 0.0
 
         self.ante = ante
         self.bet1 = bet1
         self.bet2 = bet2
 
-        print "Ante: %f   Bet-1: %f   Bet-2: %f" % (ante, bet1, bet2)
+        print("Ante: %f   Bet-1: %f   Bet-2: %f" % (ante, bet1, bet2))
 
         for i in range(iterations):
             if i % print_interval == 0 and i != 0:
-                print "P1 expected value after %i iterations: %f" % (i, util/i)
+                print("P1 expected value after %i iterations: %f" % (i, util / i))
 
             # if random.random() < 0.08:
             #     if random.random() < 0.5:
@@ -164,10 +198,12 @@ class CFR():
             p1_hand = self.simplify_hand(player_one_cards)
             p2_hand = self.simplify_hand(player_two_cards)
             cards = [p1_hand, p2_hand]
+
             history = list()
+
             util += self.cfr(cards, history, 1, 1)
 
-        return util/iterations
+        return util / iterations
 
     def get_strategy(self):
         result = dict()
@@ -205,14 +241,14 @@ class CFR():
                 else:
                     result[p2_raise][hand] = node.strategy_[Game.BET]
                     result[p2_call][hand] = node.strategy_[Game.CALL]
-            #player 1
+            # player 1
             elif len(history) == 2:
                 if history[0] == Game.BET:
                     result[p1_bet_call][hand] = node.strategy_[Game.CALL]
                 else:
                     result[p1_check_raise][hand] = node.strategy_[Game.BET]
                     result[p1_check_call][hand] = node.strategy_[Game.CALL]
-            #player 2
+            # player 2
             elif len(history) == 3:
                 result[p2_bet_call][hand] = node.strategy_[Game.CALL]
 
@@ -238,8 +274,10 @@ class CFR():
     # @probability2 - the probability of reaching this game state for player 2
     def cfr(self, cards, history, probability1, probability2):
         num_moves = len(history)
+
         player = num_moves % 2
         opponent = 1 - player
+
         player_hand = cards[player]
         opponent_hand = cards[opponent]
 
@@ -258,6 +296,7 @@ class CFR():
                     return self.ante + self.bet1
 
                 return self.ante
+
             # Opponent called a bet
             if history[-1] == Game.CALL:
                 winner = self.get_winner(player_hand, opponent_hand)
@@ -269,11 +308,13 @@ class CFR():
                 for action in history:
                     if action == Game.BET:
                         num_bets += 1
+
                 if num_bets == 2:
                     reward += self.bet2
                 elif num_bets == 1:
                     reward += self.bet1
-                return reward if winner==1 else -reward
+
+                return reward if winner == 1 else -reward
 
             # Check check
             if history[-1] == Game.CHECK:
@@ -281,14 +322,14 @@ class CFR():
 
                 if winner == 0:
                     return 0
-                return self.ante if winner==1 else -self.ante
+                return self.ante if winner == 1 else -self.ante
 
         state = str(player_hand)
         for action in history:
             state += action
 
         if state in self.game_states_:
-            node = self.game_states_[state] # Get our node if it already exists
+            node = self.game_states_[state]  # Get our node if it already exists
             possible_actions = node.actions_
         else:
             # Create new Node with possible actions we can perform
@@ -317,14 +358,13 @@ class CFR():
         # for each of our possible actions, compute the utility of it
         # thus, finding the overall utility of this current state
         for action in possible_actions:
-            next_history = list(history) # copy
+            next_history = list(history)  # copy
             next_history.append(action)
 
             if player == 0:
                 util[action] = -self.cfr(cards, next_history, probability1 * strategy[action], probability2)
             else:
                 util[action] = -self.cfr(cards, next_history, probability1, probability2 * strategy[action])
-
 
             node_util += strategy[action] * util[action]
 
@@ -338,7 +378,8 @@ class CFR():
 
         return node_util
 
-class Node():
+
+class Node:
     def __init__(self, actions):
         self.actions_ = actions
         self.regret_sum_ = dict()

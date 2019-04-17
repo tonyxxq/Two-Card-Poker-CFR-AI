@@ -1,70 +1,5 @@
 import random
-
-
-class Game:
-    # 动作
-    BET = '0'
-    CALL = '1'
-    CHECK = '2'
-    FOLD = '3'
-
-    # 牌力的大小排名
-    RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2']
-
-    # 花色
-    SUIT = ['h', 's', 'd', 'c']
-
-    # 生成 52 张牌
-    DECK = [rank + suit for rank in RANKS for suit in SUIT]
-
-    @staticmethod
-    def deal_cards():
-        """
-        随机发牌，每人两张
-        """
-        sample = random.sample(Game.DECK, 4)
-        player_one_cards = sample[0:2]
-        player_two_cards = sample[2:]
-
-        return player_one_cards, player_two_cards
-
-    @staticmethod
-    def deal_cards_biased(player_one_favored):
-        rand_hand = random.sample(Game.DECK, 2)
-        strong_hand = list()
-
-        # Strong suited ace
-        if random.random() > 0.9:
-            strong_hand.append('Ah')
-            if random.random() > 0.5:
-                strong_hand.append('Kh')
-            elif random.random() > 0.5:
-                strong_hand.append('Qh')
-            else:
-                strong_hand.append('Jh')
-        # Pocket pair
-        else:
-            rank = random.choice(Game.RANKS)
-            strong_hand.append(rank + 'h')
-            strong_hand.append(rank + 's')
-
-        if player_one_favored:
-            return strong_hand, rand_hand
-        else:
-            return rand_hand, strong_hand
-
-    @staticmethod
-    def get_higher_rank(rank1, rank2):
-        """
-        比较大小
-        """
-        for rank in Game.RANKS:
-            if rank1 == rank:
-                return rank1
-            if rank2 == rank:
-                return rank2
-
-        return rank1
+from game import Game
 
 
 class CFR:
@@ -73,6 +8,7 @@ class CFR:
 
     def simplify_hand(self, hand):
         """
+        对手上的两张牌进行简化
         Takes a hand (array of size two) and compresses the hand into simpler representation
             Also puts higher card in front
 
@@ -106,6 +42,7 @@ class CFR:
 
     def get_winner(self, hand1, hand2):
         """
+        判断胜利者
         Gets the winner between the two hands
             Pair > Suited > Off-suited
             If two hands are in the same category, then the higher card of each hand
@@ -131,7 +68,6 @@ class CFR:
             return 1
         elif is_hand2_pair:
             return 2
-
 
         # 两个是否是同花
         is_hand1_suited = hand1[2] == 's'
@@ -168,11 +104,12 @@ class CFR:
 
     def train(self, iterations, ante=1.0, bet1=2.0, bet2=8.0, print_interval=1000000):
         """
+        玩家互博指定次数，找到最优策略
         Do ficticious self-play to find optimal strategy
         :param iterations: 
-        :param ante: 
-        :param bet1: 
-        :param bet2: 
+        :param ante: 底注
+        :param bet1: 第一次下注 
+        :param bet2: 第二次下注
         :param print_interval: 
         :return: 
         """
@@ -276,8 +213,17 @@ class CFR:
     # @probability1 - the probability of reaching this game state for player 1
     # @probability2 - the probability of reaching this game state for player 2
     def cfr(self, cards, history, probability1, probability2):
+        """
+        计算 CFR
+        :param cards: 
+        :param history: 
+        :param probability1: 目的是让概率归一化为 1
+        :param probability2: 
+        :return: 
+        """
         num_moves = len(history)
 
+        # 确定当前玩家和对手
         player = num_moves % 2
         opponent = 1 - player
 
@@ -286,9 +232,10 @@ class CFR:
 
         probability_weight = probability1 if player == 0 else probability2
 
-        # can only end if at least 2 moves
+        # 每个人至少执行一个动作，游戏才会到达结束状态，所以总共至少两步
+        # 已经到达叶子节点，直接返回奖励值
         if num_moves >= 2:
-            # Opponent folded
+            # 对手弃牌
             if history[-1] == Game.FOLD:
                 num_bets = 0
                 for action in history:
@@ -300,9 +247,10 @@ class CFR:
 
                 return self.ante
 
-            # Opponent called a bet
+            # 对手跟进
             if history[-1] == Game.CALL:
                 winner = self.get_winner(player_hand, opponent_hand)
+                # 平局
                 if winner == 0:
                     return 0
 
@@ -319,7 +267,7 @@ class CFR:
 
                 return reward if winner == 1 else -reward
 
-            # Check check
+            # 对手让牌
             if history[-1] == Game.CHECK:
                 winner = self.get_winner(player_hand, opponent_hand)
 
@@ -327,11 +275,14 @@ class CFR:
                     return 0
                 return self.ante if winner == 1 else -self.ante
 
+        # 当前玩家持的手牌
         state = str(player_hand)
 
+        # 手牌加上所有的历史动作作为 state
         for action in history:
             state += action
 
+        # 如果在状态空间中已经存在该状态，直接获取,否则创建
         if state in self.game_states_:
             node = self.game_states_[state]  # Get our node if it already exists
             possible_actions = node.actions_
@@ -353,33 +304,44 @@ class CFR:
                 else:
                     possible_actions = [Game.CHECK, Game.BET]
 
+            # 新添加一个 node
             node = Node(possible_actions)
             self.game_states_[state] = node
 
+        # 找到策略
         strategy = node.get_strategy(probability_weight)
+
         util = dict()
         node_util = 0
+
         # for each of our possible actions, compute the utility of it
         # thus, finding the overall utility of this current state
+
+        # 每个可能的动作进行递归调用，并乘上动作的概率值
         for action in possible_actions:
             next_history = list(history)  # copy
             next_history.append(action)
 
+            # 返回的是动作的奖励值
             if player == 0:
                 util[action] = -self.cfr(cards, next_history, probability1 * strategy[action], probability2)
             else:
                 util[action] = -self.cfr(cards, next_history, probability1, probability2 * strategy[action])
 
+            # 动作奖励值的期望值
             node_util += strategy[action] * util[action]
 
         # compute regret and update Game State for the node based on utility of all actions
+        # 计算后悔值
         for action in possible_actions:
+            # 当前动作的奖励值小于期望值，后悔
             regret = util[action] - node_util
             if player == 0:
                 node.regret_sum_[action] += regret * probability2
             else:
                 node.regret_sum_[action] += regret * probability1
 
+        # 返回当前策略的期望值
         return node_util
 
 
@@ -396,12 +358,18 @@ class Node:
             self.strategy_sum_[action] = 0.0
 
     def get_strategy(self, realization_weight):
+        """
+        计算策略值
+        """
+        # 为了进行归一化用
         normalizing_sum = 0
 
+        # 计算 normalizing_sum 值
         for action in self.actions_:
             self.strategy_[action] = self.regret_sum_[action] if self.regret_sum_[action] > 0 else 0
             normalizing_sum += self.strategy_[action]
 
+        # 使用归一化后的当前策略值，计算策略累加值
         for action in self.actions_:
             if normalizing_sum > 0:
                 self.strategy_[action] /= normalizing_sum
@@ -413,6 +381,10 @@ class Node:
         return self.strategy_
 
     def get_average_strategy(self):
+        """
+        计算策略均值
+        """
+
         average_strategy = dict
         normalizing_sum = 0
 
